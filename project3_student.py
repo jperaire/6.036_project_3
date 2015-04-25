@@ -175,7 +175,7 @@ def Mstep(X,K,Mu,P,Var,post):
     return (Mu,P,Var)
 
 # ----------------------------------------------------------------------------------------------------
-# mixture of Guassians
+# mixture of Gaussians
 # input: X: n*d data matrix;
 #        K: number of mixtures;
 #        Mu: K*d matrix, each row corresponds to a mixture mean;
@@ -191,10 +191,21 @@ def mixGauss(X,K,Mu,P,Var):
     n,d = np.shape(X) # n data points of dimension d
     post = np.zeros((n,K)) # posterior probs tbd
 
-    #Write your code here
-    #Use function Estep and Mstep as two subroutines
+    LL = []
+    #Arbitrary initializations
+    old_LL = 1
+    new_LL = None
 
+    while np.allclose(new_LL,old_LL):
+        old_LL = new_LL
+        post, LL = Estep(X, K, Mu, P, Var)
+        Mu, P, Var = Mstep(X, K, Mu, P, Var, post)
+        LL.append(LL)
+
+    LL = LL_list
     return (Mu,P,Var,post,LL)
+
+
 # fill incomplete Matrix
 # input: X: n*d incomplete data matrix;
 #        K: number of mixtures;

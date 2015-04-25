@@ -161,7 +161,16 @@ def Estep(X,K,Mu,P,Var):
 def Mstep(X,K,Mu,P,Var,post):
     n,d = np.shape(X) # n data points of dimension d
 
-    #Write your code here
+    n_hat = post.sum(axis=0)
+    P = n_hat/n
+
+    weighted_mean_of_points = (np.expand_dims(X, 1) * post).sum(axis=0) #(K, d)
+    Mu = 1.0/n_hat * weighted_mean_of_points
+
+    mean_squared_spread = np.sqrt((np.expand_dims(X, 1) - np.expand_dims(Mu, 0))**2).sum(axis=2) #(n, K)
+    weighted_mss = (means_squared_spread * post).sum(axis=0)
+
+    Var = 1.0/(d * n_hat) * weighted_mss
 
     return (Mu,P,Var)
 

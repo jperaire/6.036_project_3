@@ -107,13 +107,14 @@ def kMeans(X, K, Mu, P, Var):
         print curCost
     # return a mixture model retrofitted from the K-means solution
     return (Mu,P,Var,post)
-     
+
 # RMSE criteria
 # input: X: n*d data matrix;
 #        Y: n*d data matrix;
 # output: RMSE
 def rmse(X,Y):
     return np.sqrt(np.mean((X-Y)**2))
+
 
 # E step of EM algorithm
 # input: X: n*d data matrix;
@@ -127,7 +128,22 @@ def Estep(X,K,Mu,P,Var):
     n,d = np.shape(X) # n data points of dimension d
     post = np.zeros((n,K)) # posterior probabilities to tbd
 
-    #Write your code here
+    X_copies = np.expand_dims(X.copy(), 0) #(1, n, d)
+    Mu_copies = np.expand_dims(Mu.copy(), 1) #(K, 1, d)
+
+    distances = np.sqrt(np.sum((X_copies - Mu_copies) ** 2, axis=2)) #(K, n)
+    to_exp = -1.0/(2 * Var) * distances #(K, n)
+
+    consts = 1.0/(2 * np.pi * Var)**d/2.0 #(K, 1)
+
+    probabilities = (consts * np.exp(to_exp)) #(K, n)
+
+    weighted_probs = probabilities * P #(K, n)
+
+    #MIGHT BE AXIS=1
+    post = (weighted_probs.T/weighted_probs.sum(axis=0)) #(n, K)
+
+    LL = np.log(weighted_probs.sum(axis=0)).sum()
 
     return (post,LL)
 

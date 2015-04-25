@@ -13,7 +13,7 @@ def readData(file):
         for line in f:
             X.append(map(float,line.split(" ")))
     return np.array(X)
-    
+
 # plot 2D toy data
 # input: X: n*d data matrix;
 #        K: number of mixtures;
@@ -55,7 +55,7 @@ def plot2D(X,K,Mu,P,Var,Label,title):
 #        or randomized way
 # output: Mu: K*d matrix, each row corresponds to a mixture mean;
 #         P: K*1 matrix, each entry corresponds to the weight for a mixture;
-#         Var: K*1 matrix, each entry corresponds to the variance for a mixture;    
+#         Var: K*1 matrix, each entry corresponds to the variance for a mixture;
 def init(X,K,fixedmeans=False):
     n, d = np.shape(X)
     P=np.ones((K,1))/float(K)
@@ -106,7 +106,8 @@ def kMeans(X, K, Mu, P, Var):
             Var[i]=sse/float(d*n_hat[i])
         print curCost
     # return a mixture model retrofitted from the K-means solution
-    return (Mu,P,Var,post) 
+    return (Mu,P,Var,post)
+     
 # RMSE criteria
 # input: X: n*d data matrix;
 #        Y: n*d data matrix;
@@ -127,7 +128,7 @@ def Estep(X,K,Mu,P,Var):
     post = np.zeros((n,K)) # posterior probabilities to tbd
 
     #Write your code here
-    
+
     return (post,LL)
 
 # M step of EM algorithm
@@ -145,7 +146,7 @@ def Mstep(X,K,Mu,P,Var,post):
     n,d = np.shape(X) # n data points of dimension d
 
     #Write your code here
-        
+
     return (Mu,P,Var)
 
 # ----------------------------------------------------------------------------------------------------
@@ -164,10 +165,10 @@ def Mstep(X,K,Mu,P,Var,post):
 def mixGauss(X,K,Mu,P,Var):
     n,d = np.shape(X) # n data points of dimension d
     post = np.zeros((n,K)) # posterior probs tbd
-    
+
     #Write your code here
     #Use function Estep and Mstep as two subroutines
-    
+
     return (Mu,P,Var,post,LL)
 # fill incomplete Matrix
 # input: X: n*d incomplete data matrix;
@@ -180,18 +181,16 @@ def fillMatrix(X,K,Mu,P,Var):
     n,d = np.shape(X)
     Xnew = np.copy(X)
 
-    #Write your code here       
-    
+    #Write your code here
+
     return Xnew
 
 # Bayesian Information Criterion (BIC) for selecting the number of mixture components
-# input:  n*d data matrix X, a list of K's to try 
+# input:  n*d data matrix X, a list of K's to try
 # output: the highest scoring choice of K
 def BICmix(X,Kset):
     n,d = np.shape(X)
 
     #Write your code here
-    
+
     return K
-
-

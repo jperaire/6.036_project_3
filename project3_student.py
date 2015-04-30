@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as pat
 from numpy import linalg as LA
+from scipy.stats import norm
+
 
 # Reads a data matrix from file.
 # Output: X: data matrix.
@@ -132,18 +134,20 @@ def Estep(X,K,Mu,P,Var):
     Mu_copies = np.expand_dims(Mu.copy(), 1) #(K, 1, d)
 
     distances = np.sqrt(np.sum((X_copies - Mu_copies) ** 2, axis=2)) #(K, n)
-    to_exp = -1.0/(2 * Var) * distances #(K, n)
+    #to_exp = -1.0/(2 * Var) * distances #(K, n)
 
-    consts = 1.0/(2 * np.pi * Var)**d/2.0 #(K, 1)
+    #consts = 1.0/(2 * np.pi * Var)**d/2.0 #(K, 1)
 
-    probabilities = (consts * np.exp(to_exp)) #(K, n)
+    #probabilities = (consts * np.exp(to_exp)) #(K, n)
+    std_devs = np.sqrt(Var)
+
+    probabilities = norm.pdf(distances, scale=std_devs) #(K, n)
 
     weighted_probs = probabilities * P #(K, n)
 
-    #MIGHT BE AXIS=1
-    post = (weighted_probs.T/weighted_probs.sum(axis=0)) #(n, K)
+    post = (weighted_probs.T/np.expand_dims(weighted_probs.sum(axis=0), 1)) #(n, K)
 
-    LL = np.log(weighted_probs.sum(axis=0)).sum()
+    LL = (post * np.log(weighted_probs).T).sum()
 
     return (post,LL)
 
@@ -162,15 +166,20 @@ def Mstep(X,K,Mu,P,Var,post):
     n,d = np.shape(X) # n data points of dimension d
 
     n_hat = post.sum(axis=0)
-    P = n_hat/n
+    P = n_hat/float(n)
 
-    weighted_mean_of_points = (np.expand_dims(X, 1) * post).sum(axis=0) #(K, d)
-    Mu = 1.0/n_hat * weighted_mean_of_points
+    weighted_mean_of_points = (np.expand_dims(X, 1) * np.expand_dims(post, 2)).sum(axis=0) #(K, d)
+
+    Mu = 1.0/np.expand_dims(n_hat, 1) * weighted_mean_of_points
+
 
     mean_squared_spread = np.sqrt((np.expand_dims(X, 1) - np.expand_dims(Mu, 0))**2).sum(axis=2) #(n, K)
-    weighted_mss = (means_squared_spread * post).sum(axis=0)
+    weighted_mss = (mean_squared_spread * post).sum(axis=0)
 
     Var = 1.0/(d * n_hat) * weighted_mss
+
+    P = np.expand_dims(P, 1)
+    Var = np.expand_dims(Var, 1)
 
     return (Mu,P,Var)
 
@@ -192,18 +201,22 @@ def mixGauss(X,K,Mu,P,Var):
     post = np.zeros((n,K)) # posterior probs tbd
 
     LL = []
-    #Arbitrary initializations
-    old_LL = 1
-    new_LL = None
 
-    while np.allclose(new_LL,old_LL):
+    post, new_LL = Estep(X, K, Mu, P, Var)
+    Mu, P, Var = Mstep(X, K, Mu, P, Var, post)
+    LL.append(new_LL)
+
+    old_LL = False
+    i = 0
+    while np.abs(new_LL - old_LL) > 1e-6*np.abs(new_LL):
         old_LL = new_LL
-        post, LL = Estep(X, K, Mu, P, Var)
+        post, new_LL = Estep(X, K, Mu, P, Var)
         Mu, P, Var = Mstep(X, K, Mu, P, Var, post)
-        LL.append(LL)
+        LL.append(new_LL)
 
-    LL = LL_list
-    return (Mu,P,Var,post,LL)
+
+
+    return (Mu, np.squeeze(P), Var, post, LL)
 
 
 # fill incomplete Matrix

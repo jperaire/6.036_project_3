@@ -108,7 +108,7 @@ def kMeans(X, K, Mu, P, Var):
             Var[i]=sse/float(d*n_hat[i])
         print curCost
     # return a mixture model retrofitted from the K-means solution
-    return (Mu,P,Var,post)
+    return (Mu,P,Var,post,curCost)
 
 # RMSE criteria
 # input: X: n*d data matrix;
@@ -136,15 +136,31 @@ def Estep(X, K, Mu, P, Var):
 
     X = X.copy()
     Mu = Mu.copy()
+    P = P.copy()
 
     for i in xrange(n):
         stored_values = np.zeros(K)
         for j in xrange(K):
             exp_term = -1.0/(2*Var[j])*(dist(X[i]-Mu[j])**2)
-
             stored_values[j] = P[j] * (1.0/(2*np.pi*Var[j])**(d/2.0))*np.exp(exp_term)
         LL += np.log(stored_values.sum())
         post[i,:] = stored_values/stored_values.sum()
+
+#Alternative method - DOESNT WORK YET
+
+    # X_copies = np.expand_dims(X.copy(), 0) #(1, n, d)
+    # Mu_copies = np.expand_dims(Mu.copy(), 1) #(K, 1, d)
+    #
+    # distances = dist(X_copies - Mu_copies, axis=2) #(K, n)
+    #
+    # std_devs = np.sqrt(Var)
+    #
+    # probabilities = (1.0/(2*np.pi*Var)**(d/2.0)) * norm.pdf(distances, scale=std_devs) #(K, n)
+    #
+    # weighted_probs = P * probabilities #(K, n)
+    #
+    # post_copy = (weighted_probs.T/np.expand_dims(weighted_probs.sum(axis=0), 1)) #(n, K)
+    # assert np.allclose(post, post_copy)
 
     return (post, LL)
 
@@ -206,8 +222,9 @@ def Mstep(X, K, Mu, P, Var, post):
     # weighted_mss = (mss * post).sum(axis=0)
     # Var_hat = 1.0/(d * n_hats) * weighted_mss
     # assert np.allclose(Var_hat, Var)
+    #     Var = np.expand_dims(Var, 1)
 
-
+    P = np.expand_dims(P, 1)
     return (Mu, P, Var)
 
 # def Mstep(X,K,Mu,P,Var,post):
@@ -262,9 +279,7 @@ def mixGauss(X,K,Mu,P,Var):
         Mu, P, Var = Mstep(X, K, Mu, P, Var, post)
         LL.append(new_LL)
 
-
-
-    return (Mu, np.squeeze(P), Var, post, LL)
+    return (Mu, P, Var, post, LL)
 
 
 # fill incomplete Matrix
@@ -285,7 +300,8 @@ def fillMatrix(X,K,Mu,P,Var):
 # Bayesian Information Criterion (BIC) for selecting the number of mixture components
 # input:  n*d data matrix X, a list of K's to try
 # output: the highest scoring choice of K
-def BICmix(X,Kset):
+#         BIC_score: The BIC score of the highest choice of K
+def BICmix(X, Kset):
     n, d = np.shape(X)
     BICs = np.empty(len(Kset))
     Ks = np.empty(len(Kset))
@@ -293,9 +309,15 @@ def BICmix(X,Kset):
     for i, K in enumerate(Kset):
         Mu, P, Var = init(X, K)
         _, _, _, _, LL = mixGauss(X, K, Mu, P, Var)
-        BICs[i] = LL - (1.0/2 * (K*d + 2*K - 1) * np.log(n))
+        BICs[i] = LL[-1] - (1.0/2 * (K*d + 2*K - 1) * np.log(n))
+
+        for _ in xrange(5):
+            Mu, P, Var = init(X, K)
+            _, _, _, _, LL = mixGauss(X, K, Mu, P, Var)
+            BICs[i] = max(LL[-1] - (1.0/2 * (K*d + 2*K - 1) * np.log(n)), BICs[i])
         Ks[i] = K
 
     K = Ks[np.argmax(BICs)]
+    BIC_score = BICs.max()
 
-    return K
+    return K, BIC_score

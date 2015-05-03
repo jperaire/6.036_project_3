@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as pat
 from numpy import linalg as LA
-from scipy.stats import norm
+from scipy.stats import norm, multivariate_normal
 
 
 # Reads a data matrix from file.
@@ -117,6 +117,8 @@ def kMeans(X, K, Mu, P, Var):
 def rmse(X,Y):
     return np.sqrt(np.mean((X-Y)**2))
 
+def dist(X, axis=0):
+    return np.sqrt((X**2).sum(axis=axis))
 
 # E step of EM algorithm
 # input: X: n*d data matrix;
@@ -126,30 +128,49 @@ def rmse(X,Y):
 #        Var: K*1 matrix, each entry corresponds to the variance for a mixture;
 # output:post: n*K matrix, each row corresponds to the soft counts for all mixtures for an example
 #        LL: a Loglikelihood value
-def Estep(X,K,Mu,P,Var):
-    n,d = np.shape(X) # n data points of dimension d
-    post = np.zeros((n,K)) # posterior probabilities to tbd
 
-    X_copies = np.expand_dims(X.copy(), 0) #(1, n, d)
-    Mu_copies = np.expand_dims(Mu.copy(), 1) #(K, 1, d)
+def Estep(X, K, Mu, P, Var):
+    n, d = np.shape(X)
+    post = np.zeros((n, K))
+    LL = 0
 
-    distances = np.sqrt(np.sum((X_copies - Mu_copies) ** 2, axis=2)) #(K, n)
-    #to_exp = -1.0/(2 * Var) * distances #(K, n)
+    X = X.copy()
+    Mu = Mu.copy()
 
-    #consts = 1.0/(2 * np.pi * Var)**d/2.0 #(K, 1)
+    for i in xrange(n):
+        stored_values = np.zeros(K)
+        for j in xrange(K):
+            exp_term = -1.0/(2*Var[j])*(dist(X[i]-Mu[j])**2)
 
-    #probabilities = (consts * np.exp(to_exp)) #(K, n)
-    std_devs = np.sqrt(Var)
+            stored_values[j] = P[j] * (1.0/(2*np.pi*Var[j])**(d/2.0))*np.exp(exp_term)
+        LL += np.log(stored_values.sum())
+        post[i,:] = stored_values/stored_values.sum()
 
-    probabilities = norm.pdf(distances, scale=std_devs) #(K, n)
+    return (post, LL)
 
-    weighted_probs = probabilities * P #(K, n)
+# def Estep(X,K,Mu,P,Var):
+#     n,d = np.shape(X) # n data points of dimension d
+#     post = np.zeros((n,K)) # posterior probabilities tbd
+#
+#     X_copies = np.expand_dims(X.copy(), 0) #(1, n, d)
+#     Mu_copies = np.expand_dims(Mu.copy(), 1) #(K, 1, d)
+#
+#     distances = dist(X_copies - Mu_copies, axis=2) #(K, n)
+#
+#     std_devs = np.sqrt(Var)
+#
+#     probabilities = (1.0/(2*np.pi*Var)**(d/2.0)) * norm.pdf(distances, scale=std_devs) #(K, n)
+#
+#     weighted_probs = P * probabilities #(K, n)
+#
+#     post = (weighted_probs.T/np.expand_dims(weighted_probs.sum(axis=0), 1)) #(n, K)
+#
+#     LL = (post * np.log(weighted_probs).T).sum()
+#     LL = (np.log(weighted_probs.sum(axis=0))).sum()
+#
+#     return (post, LL)
 
-    post = (weighted_probs.T/np.expand_dims(weighted_probs.sum(axis=0), 1)) #(n, K)
 
-    LL = (post * np.log(weighted_probs).T).sum()
-
-    return (post,LL)
 
 # M step of EM algorithm
 # input: X: n*d data matrix;
@@ -162,26 +183,53 @@ def Estep(X,K,Mu,P,Var):
 #        P: updated P, K*1 matrix, each entry corresponds to the weight for a mixture;
 #        Var: updated Var, K*1 matrix, each entry corresponds to the variance for a mixture;
 
-def Mstep(X,K,Mu,P,Var,post):
-    n,d = np.shape(X) # n data points of dimension d
+def Mstep(X, K, Mu, P, Var, post):
+    n, d = np.shape(X)
 
-    n_hat = post.sum(axis=0)
-    P = n_hat/float(n)
+    n_hats = post.sum(axis=0)
+    P = n_hats/float(n)
+
+    # Mu = np.empty((K, d))
+    # for k in xrange(K):
+    #     Mu[k,:] = (1.0/n_hats[k]) * (np.expand_dims(post[:, k], 1) * X).sum(axis=0)
 
     weighted_mean_of_points = (np.expand_dims(X, 1) * np.expand_dims(post, 2)).sum(axis=0) #(K, d)
+    Mu = 1.0/np.expand_dims(n_hats, 1) * weighted_mean_of_points
 
-    Mu = 1.0/np.expand_dims(n_hat, 1) * weighted_mean_of_points
+    Var = np.empty((K, 1))
+    for k in xrange(K):
+        Var[k, :] = (1.0/(d*n_hats[k])) * (post[:, k] * dist(X-Mu[k, :], axis=1)**2).sum()
+
+    # DOESNT WORK YET
+    # displacement_vectors = (np.expand_dims(X, 1) - np.expand_dims(Mu, 0))
+    # mss = dist(displacement_vectors, axis=2)**2
+    # weighted_mss = (mss * post).sum(axis=0)
+    # Var_hat = 1.0/(d * n_hats) * weighted_mss
+    # assert np.allclose(Var_hat, Var)
 
 
-    mean_squared_spread = np.sqrt((np.expand_dims(X, 1) - np.expand_dims(Mu, 0))**2).sum(axis=2) #(n, K)
-    weighted_mss = (mean_squared_spread * post).sum(axis=0)
+    return (Mu, P, Var)
 
-    Var = 1.0/(d * n_hat) * weighted_mss
-
-    P = np.expand_dims(P, 1)
-    Var = np.expand_dims(Var, 1)
-
-    return (Mu,P,Var)
+# def Mstep(X,K,Mu,P,Var,post):
+#     n,d = np.shape(X) # n data points of dimension d
+#
+#     n_hat = post.sum(axis=0)
+#     P = n_hat/float(n)
+#
+#     weighted_mean_of_points = (np.expand_dims(X, 1) * np.expand_dims(post, 2)).sum(axis=0) #(K, d)
+#
+#     Mu = 1.0/np.expand_dims(n_hat, 1) * weighted_mean_of_points
+#
+#
+#     mean_squared_spread = np.sqrt((np.expand_dims(X, 1) - np.expand_dims(Mu, 0))**2).sum(axis=2) #(n, K)
+#     weighted_mss = (mean_squared_spread * post).sum(axis=0)
+#
+#     Var = 1.0/(d * n_hat) * weighted_mss
+#
+#     P = np.expand_dims(P, 1)
+#     Var = np.expand_dims(Var, 1)
+#
+#     return (Mu,P,Var)
 
 # ----------------------------------------------------------------------------------------------------
 # mixture of Gaussians
@@ -238,8 +286,16 @@ def fillMatrix(X,K,Mu,P,Var):
 # input:  n*d data matrix X, a list of K's to try
 # output: the highest scoring choice of K
 def BICmix(X,Kset):
-    n,d = np.shape(X)
+    n, d = np.shape(X)
+    BICs = np.empty(len(Kset))
+    Ks = np.empty(len(Kset))
 
-    #Write your code here
+    for i, K in enumerate(Kset):
+        Mu, P, Var = init(X, K)
+        _, _, _, _, LL = mixGauss(X, K, Mu, P, Var)
+        BICs[i] = LL - (1.0/2 * (K*d + 2*K - 1) * np.log(n))
+        Ks[i] = K
+
+    K = Ks[np.argmax(BICs)]
 
     return K

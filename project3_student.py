@@ -142,85 +142,29 @@ def Estep(X,K,Mu,P,Var):
 
     X_mask = X != 0
 
-    # for i in xrange(n):
-    #     stored_values = np.zeros(K)
-    #     for j in xrange(K):
-    #         mask = np.argwhere(X[i] != 0)
-    #         distance = dist((X[i]-Mu[j])[mask])
-    #         exp_term = -1.0/(2*Var[j])*(distance**2)
-    #         stored_values[j] = P[j] * (1.0/(2*np.pi*Var[j])**(X_mask[i, :].sum()/2.0))*np.exp(exp_term)
-    #     LL += np.log(stored_values.sum())
-    #     post[i,:] = stored_values/stored_values.sum()
-
-    temp = np.zeros((n, K))
     for i in xrange(n):
         stored_values = np.zeros(K)
         for j in xrange(K):
             mask = np.argwhere(X[i] != 0)
             distance = dist((X[i]-Mu[j])[mask])
-            exp_term = -1.0/(2*Var[j])*(distance**2)
+            exp_term = (-1.0/(2*Var[j]))*(distance**2)
             stored_values[j] = np.log(P[j]) - \
-                                (X_mask[i, :].sum()/2.0) * np.log((2*np.pi*Var[j])) + \
+                                (X_mask[i, :].sum()/2.0)*np.log(2*np.pi*Var[j]) + \
                                 exp_term
-        LL += stored_values.sum()
-        temp[i, :] = stored_values
-        stored_values = np.exp(stored_values - stored_values.max())
 
-        denominator = np.exp(stored_values).sum()
+        m = stored_values.max()
+        prob_diff = np.exp(stored_values - m)
 
-        post[i,:] = stored_values/denominator
+        denom = prob_diff.sum()
+        post[i,:] = prob_diff/denom
+        LL += np.log(denom) + m
 
-    # for i in xrange(n):
-    #     for j in xrange(K):
-    #         LL += post[i, j] * temp[i, j]
 
     return (post, LL)
 
-#Alternative method - DOESNT WORK YET
-
-    # X_copies = np.expand_dims(X.copy(), 0) #(1, n, d)
-    # Mu_copies = np.expand_dims(Mu.copy(), 1) #(K, 1, d)
-    #
-    # distances = dist(X_copies - Mu_copies, axis=2) #(K, n)
-    #
-    # std_devs = np.sqrt(Var)
-    #
-    # probabilities = (1.0/(2*np.pi*Var)**(d/2.0)) * norm.pdf(distances, scale=std_devs) #(K, n)
-    #
-    # weighted_probs = P * probabilities #(K, n)
-    #
-    # post_copy = (weighted_probs.T/np.expand_dims(weighted_probs.sum(axis=0), 1)) #(n, K)
-    # assert np.allclose(post, post_copy)
 
 
 
-# def Estep(X,K,Mu,P,Var):
-#     n,d = np.shape(X) # n data points of dimension d
-#     post = np.zeros((n,K)) # posterior probabilities tbd
-#
-#     X_copies = np.expand_dims(X.copy(), 0) #(1, n, d)
-#     Mu_copies = np.expand_dims(Mu.copy(), 1) #(K, 1, d)
-#
-#     distances = dist(X_copies - Mu_copies, axis=2) #(K, n)
-#
-#     std_devs = np.sqrt(Var)
-#
-#     probabilities = (1.0/(2*np.pi*Var)**(d/2.0)) * norm.pdf(distances, scale=std_devs) #(K, n)
-#
-#     weighted_probs = P * probabilities #(K, n)
-#
-#     post = (weighted_probs.T/np.expand_dims(weighted_probs.sum(axis=0), 1)) #(n, K)
-#
-#     LL = (post * np.log(weighted_probs).T).sum()
-#     LL = (np.log(weighted_probs.sum(axis=0))).sum()
-#
-#     return (post, LL)
-
-    # post = (weighted_probs.T/np.expand_dims(weighted_probs.sum(axis=0), 1)) #(n, K)
-    #
-    # LL = (post * np.log(weighted_probs).T).sum()
-    #
-    # return (post,LL)
 
 
 # M step of EM algorithm
@@ -237,70 +181,40 @@ def Estep(X,K,Mu,P,Var):
 def Mstep(X,K,Mu,P,Var,post):
     n,d = np.shape(X) # n data points of dimension d
 
-    Mu = np.empty((K, d))
+    n_hats = post.sum(axis=0) #(K)
+    P = n_hats/float(n)
 
-    X_mask = X != 0
+    Mu_hat = np.empty((K, d))
+
+    delta = X != 0
     post_mask = np.expand_dims(post, 2)
-    print (np.expand_dims(X_mask, 1) * post_mask).sum(axis=0)
-    enough_data = (np.expand_dims(X_mask, 1) * post_mask).sum(axis=0) >= 1 #(K, d)
+    mod_n_hats = (np.expand_dims(delta, 1) * post_mask).sum(axis=0)
+    enough_data = mod_n_hats >= 1 #(K, d)
 
-    for k in xrange(K):
-        vals = (1.0/n_hats[k]) * (np.expand_dims(post[:, k], 1) * X).sum(axis=0)
-        Mu[k,:] = np.where(enough_data[k, :], vals, Mu[k,:])
+    numerator = (np.expand_dims(post, 2) * np.expand_dims(delta * X, 1)).sum(axis=0)
 
-    #weighted_mean_of_points = (np.expand_dims(X, 1) * np.expand_dims(post, 2)).sum(axis=0) #(K, d)
-    #Mu = 1.0/np.expand_dims(n_hats, 1) * weighted_mean_of_points
+    Mu_hat = numerator/mod_n_hats
+    Mu_hat = np.where(enough_data, Mu_hat, Mu)
 
-
-    Var = np.empty((K, 1))
+    Var_init = np.empty(K)
     for k in xrange(K):
         distances = np.empty(n)
         for v in xrange(n):
-            distances[v] = dist((X[v, :]-Mu[k, :])[X_mask[v, :]], axis=0)
+            distances[v] = dist((X[v, :]-Mu_hat[k, :])[delta[v, :]], axis=0)
 
-        Var[k, :] =  (post[:, k] * distances**2).sum()
-
+        Var_init[k] =  (post[:, k] * distances**2).sum()
 
     Var_modifier = 1.0/(np.expand_dims((X != 0).sum(axis=1), 1) * post).sum(axis=0)
-    Var = Var_modifier * np.squeeze(Var)
+    Var = np.where((Var_modifier * Var_init)>0.25, Var_modifier*Var_init, 0.25)
     Var = np.expand_dims(Var, 1)
 
-    # Var = np.empty((K, 1))
-    # for k in xrange(K):
-    #     Var[k, :] = (1.0/(d*n_hats[k])) * (post[:, k] * dist(X-Mu[k, :], axis=1)**2).sum()
 
 
-    # DOESNT WORK YET
-    # displacement_vectors = (np.expand_dims(X, 1) - np.expand_dims(Mu, 0))
-    # mss = dist(displacement_vectors, axis=2)**2
-    # weighted_mss = (mss * post).sum(axis=0)
-    # Var_hat = 1.0/(d * n_hats) * weighted_mss
-    # assert np.allclose(Var_hat, Var)
-    #     Var = np.expand_dims(Var, 1)
 
     P = np.expand_dims(P, 1)
-    return (Mu, P, Var)
+    return (Mu_hat, P, Var)
 
-# def Mstep(X,K,Mu,P,Var,post):
-#     n,d = np.shape(X) # n data points of dimension d
-#
-#     n_hat = post.sum(axis=0)
-#     P = n_hat/float(n)
-#
-#     weighted_mean_of_points = (np.expand_dims(X, 1) * np.expand_dims(post, 2)).sum(axis=0) #(K, d)
-#
-#     Mu = 1.0/np.expand_dims(n_hat, 1) * weighted_mean_of_points
-#
-#
-#     mean_squared_spread = np.sqrt((np.expand_dims(X, 1) - np.expand_dims(Mu, 0))**2).sum(axis=2) #(n, K)
-#     weighted_mss = (mean_squared_spread * post).sum(axis=0)
-#
-#     Var = 1.0/(d * n_hat) * weighted_mss
-#
-#     P = np.expand_dims(P, 1)
-#     Var = np.expand_dims(Var, 1)
-#
-#     return (Mu,P,Var)
+
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -327,7 +241,6 @@ def mixGauss(X,K,Mu,P,Var):
     LL.append(new_LL)
 
     old_LL = False
-    i = 0
     while np.abs(new_LL - old_LL) > 1e-6*np.abs(new_LL):
         old_LL = new_LL
         post, new_LL = Estep(X, K, Mu, P, Var)
@@ -348,7 +261,11 @@ def fillMatrix(X,K,Mu,P,Var):
     n,d = np.shape(X)
     Xnew = np.copy(X)
 
-    #Write your code here
+    delta = X != 0
+    Mu, P, Var, post, LL = Estep(X, K, Mu, P, Var)
+    predictions = np.dot(post, Mu)
+
+    Xnew = np.where(delta, X, predictions)
 
     return Xnew
 

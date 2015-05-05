@@ -45,7 +45,7 @@ def one_d():
         #     if LL_new[-1] > LL[-1]:
         #         Mu, P, Var, post, LL = Mu_new, P_new, Var_new, post_new, LL_new
         print LL[0], LL[-1]
-        plot2D(X, K, Mu, P, Var, post, "mixGauss with K=" + str(K))
+        #plot2D(X, K, Mu, P, Var, post, "mixGauss with K=" + str(K))
 
 def one_e():
     X = readData('toy_data.txt')
@@ -56,20 +56,51 @@ def one_e():
 def two_d():
     X = readData('netflix_incomplete.txt')
 
-    K=1
+    K=12
+
+    Mu, P, Var = init(X, K)
+    Mu, P, Var, post, LL = mixGauss(X, K, Mu, P, Var)
+    print LL[-1]
+    for i in range(4):
+
+        Mu_new, P_new, Var_new = init(X, K)
+        Mu_new, P_new, Var_new, post_new, LL_new = mixGauss(X, K,
+                                                            Mu_new, P_new, Var_new)
+        print LL_new[-1]
+        if LL_new[-1] > LL[-1]:
+            Mu, P, Var, post, LL = Mu_new, P_new, Var_new, post_new, LL_new
+    print "Log likely hood of best mixture (initial, final): ", LL[0], LL[-1]
+
+
+def two_f():
+    X = readData('netflix_incomplete.txt')
+
+    K = 12
 
     Mu, P, Var = init(X, K)
     Mu, P, Var, post, LL = mixGauss(X, K, Mu, P, Var)
 
-    print LL
+    for i in range(5):
 
+        Mu_new, P_new, Var_new = init(X, K)
+        Mu_new, P_new, Var_new, post_new, LL_new = mixGauss(X, K,
+                                                            Mu_new, P_new, Var_new)
+        if LL_new[-1] > LL[-1]:
+            Mu, P, Var, post, LL = Mu_new, P_new, Var_new, post_new, LL_new
+
+    print "LL: ", LL
+    Xpred = fillMatrix(X, K, Mu, P, Var)
+    Xc = readData('netflix_complete.txt')
+
+    print "RMSE: ", rmse(Xpred, Xc)
 
 if __name__ == "__main__":
     #one_a()
     #test_EM()
-    one_d()
+    #one_d()
     #one_e()
-    #two_d()
+    two_d()
+    #two_f()
     pass
 
 # PART ONE CODE

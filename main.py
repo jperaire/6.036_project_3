@@ -1,4 +1,8 @@
+#This file contains helper functions used to run the code in project3_student.py
+
 from project3_student import *
+import numpy as np
+
 
 def one_a():
     X = readData('toy_data.txt')
@@ -72,7 +76,7 @@ def two_d():
     print "Log likely hood of best mixture (initial, final): ", LL[0], LL[-1]
 
 
-def two_f():
+def two_f_test_RMSE():
     X = readData('netflix_incomplete.txt')
 
     K = 12
@@ -85,22 +89,47 @@ def two_f():
         Mu_new, P_new, Var_new = init(X, K)
         Mu_new, P_new, Var_new, post_new, LL_new = mixGauss(X, K,
                                                             Mu_new, P_new, Var_new)
+        print LL[-1]
         if LL_new[-1] > LL[-1]:
             Mu, P, Var, post, LL = Mu_new, P_new, Var_new, post_new, LL_new
 
-    print "LL: ", LL
+    print "LL: ", LL[-1]
     Xpred = fillMatrix(X, K, Mu, P, Var)
     Xc = readData('netflix_complete.txt')
 
     print "RMSE: ", rmse(Xpred, Xc)
+
+def two_f_fill_matrix():
+
+    X = readData('netflix_incomplete_new.txt')
+
+    K = 12
+
+    Mu, P, Var = init(X, K)
+    Mu, P, Var, post, LL = mixGauss(X, K, Mu, P, Var)
+    print LL[-1]
+    for i in range(15):
+
+        Mu_new, P_new, Var_new = init(X, K)
+        Mu_new, P_new, Var_new, post_new, LL_new = mixGauss(X, K,
+                                                            Mu_new, P_new, Var_new)
+        print LL_new[-1]
+        if LL_new[-1] > LL[-1]:
+            Mu, P, Var, post, LL = Mu_new, P_new, Var_new, post_new, LL_new
+
+    print "LL: ", LL[-1]
+    Xpred = fillMatrix(X, K, Mu, P, Var)
+
+    np.savetxt('netflix_filled_new.txt', X, delimiter=' ')
 
 if __name__ == "__main__":
     #one_a()
     #test_EM()
     #one_d()
     #one_e()
-    two_d()
-    #two_f()
+    #two_d()
+    #two_f_test_RMSE()
+    two_f_fill_matrix()
     pass
 
 # PART ONE CODE

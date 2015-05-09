@@ -163,10 +163,6 @@ def Estep(X,K,Mu,P,Var):
     return (post, LL)
 
 
-
-
-
-
 # M step of EM algorithm
 # input: X: n*d data matrix;
 #        K: number of mixtures;
@@ -262,7 +258,7 @@ def fillMatrix(X,K,Mu,P,Var):
     Xnew = np.copy(X)
 
     delta = X != 0
-    Mu, P, Var, post, LL = Estep(X, K, Mu, P, Var)
+    post, LL = Estep(X, K, Mu, P, Var)
     predictions = np.dot(post, Mu)
 
     Xnew = np.where(delta, X, predictions)
